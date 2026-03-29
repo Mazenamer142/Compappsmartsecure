@@ -1,31 +1,27 @@
-// ─────────────────────────────────────────────
-//  controllers/UsersController.js
-//  Handles all DB logic for the Users table
-// ─────────────────────────────────────────────
-
+// controllers/UsersController.js
 const db = require('../config/db');
+const {
+  runValidation, required, mustBeString, mustBeEmail,
+  mustBePhone, mustBeOneOf,
+} = require('../utils/validate');
+
+const ROLES = ['customer', 'admin', 'technician'];
 
 class UsersController {
 
-  // GET /api/users
-  // Optional query params: ?search=john  ?sort=name
+  // GET /api/users  –  ?search=  ?sort=
   async getAll(req, res) {
     try {
       const { search, sort } = req.query;
-
-      // Allowed columns for sorting (prevents SQL injection via sort param)
       const allowedSort = ['user_id', 'name', 'email', 'created_at'];
       const sortCol = allowedSort.includes(sort) ? sort : 'user_id';
 
       let query  = 'SELECT user_id, name, email, phone, role, created_at FROM users';
       let params = [];
-
-      // If search param given, search by name or email
       if (search) {
         query += ' WHERE name LIKE ? OR email LIKE ?';
         params.push(`%${search}%`, `%${search}%`);
       }
-
       query += ` ORDER BY ${sortCol} ASC`;
 
       const [rows] = await db.query(query, params);
@@ -42,7 +38,8 @@ class UsersController {
         'SELECT user_id, name, email, phone, role, created_at FROM users WHERE user_id = ?',
         [req.params.id]
       );
-      if (rows.length === 0) return res.status(404).json({ status: 'error', message: 'User not found' });
+      if (rows.length === 0)
+        return res.status(404).json({ status: 'error', message: 'User not found' });
       res.status(200).json({ status: 'success', data: rows[0] });
     } catch (err) {
       res.status(500).json({ status: 'error', message: err.message });
@@ -50,17 +47,24 @@ class UsersController {
   }
 
   // POST /api/users
-  // Body: { name, email, password, phone, role }
+  // Body: { name, email, password, phone?, role? }
   async create(req, res) {
     try {
       const { name, email, password, phone, role } = req.body;
-      if (!name || !email || !password) {
-        return res.status(400).json({ status: 'error', message: 'name, email, and password are required' });
-      }
+
+      const errors = runValidation([
+        { field: 'name',     value: name,     checks: [required, mustBeString] },
+        { field: 'email',    value: email,    checks: [required, mustBeEmail] },
+        { field: 'password', value: password, checks: [required, mustBeString] },
+        { field: 'phone',    value: phone,    checks: [mustBePhone] },
+        { field: 'role',     value: role,     checks: [mustBeOneOf(ROLES)] },
+      ]);
+      if (errors.length)
+        return res.status(400).json({ status: 'error', errors });
 
       const [result] = await db.query(
-        `INSERT INTO users (name, email, password, phone, role) VALUES (?, ?, ?, ?, ?)`,
-        [name, email, password, phone, role || 'customer']
+        'INSERT INTO users (name, email, password, phone, role) VALUES (?, ?, ?, ?, ?)',
+        [name.trim(), email.trim(), password, phone || null, role || 'customer']
       );
       const [rows] = await db.query(
         'SELECT user_id, name, email, phone, role, created_at FROM users WHERE user_id = ?',
@@ -68,38 +72,47 @@ class UsersController {
       );
       res.status(201).json({ status: 'success', data: rows[0] });
     } catch (err) {
-      if (err.code === 'ER_DUP_ENTRY') return res.status(409).json({ status: 'error', message: 'Email already exists' });
+      if (err.code === 'ER_DUP_ENTRY')
+        return res.status(409).json({ status: 'error', message: 'Email already exists' });
       res.status(500).json({ status: 'error', message: err.message });
     }
   }
 
   // PUT /api/users/:id
-  // Body: any fields to update (partial update supported)
+  // Body: any subset of { name, email, phone, role }
   async update(req, res) {
     try {
-      // Build the SET clause dynamically — only update fields that were sent
+      const { name, email, phone, role } = req.body;
+
+      const errors = runValidation([
+        { field: 'name',  value: name,  checks: [mustBeString] },
+        { field: 'email', value: email, checks: [mustBeEmail] },
+        { field: 'phone', value: phone, checks: [mustBePhone] },
+        { field: 'role',  value: role,  checks: [mustBeOneOf(ROLES)] },
+      ]);
+      if (errors.length)
+        return res.status(400).json({ status: 'error', errors });
+
       const fields = ['name', 'email', 'phone', 'role'];
       const updates = [];
       const values  = [];
-
-      fields.forEach(field => {
-        if (req.body[field] !== undefined) {
-          updates.push(`${field}=?`);
-          values.push(req.body[field]);
+      fields.forEach(f => {
+        if (req.body[f] !== undefined) {
+          updates.push(`${f}=?`);
+          values.push(req.body[f]);
         }
       });
-
-      if (updates.length === 0) {
+      if (updates.length === 0)
         return res.status(400).json({ status: 'error', message: 'No fields provided to update' });
-      }
 
       values.push(req.params.id);
       const [result] = await db.query(
         `UPDATE users SET ${updates.join(', ')} WHERE user_id=?`,
         values
       );
+      if (result.affectedRows === 0)
+        return res.status(404).json({ status: 'error', message: 'User not found' });
 
-      if (result.affectedRows === 0) return res.status(404).json({ status: 'error', message: 'User not found' });
       const [rows] = await db.query(
         'SELECT user_id, name, email, phone, role FROM users WHERE user_id=?',
         [req.params.id]
@@ -114,7 +127,8 @@ class UsersController {
   async remove(req, res) {
     try {
       const [result] = await db.query('DELETE FROM users WHERE user_id=?', [req.params.id]);
-      if (result.affectedRows === 0) return res.status(404).json({ status: 'error', message: 'User not found' });
+      if (result.affectedRows === 0)
+        return res.status(404).json({ status: 'error', message: 'User not found' });
       res.status(200).json({ status: 'success', message: `User ${req.params.id} deleted` });
     } catch (err) {
       res.status(500).json({ status: 'error', message: err.message });

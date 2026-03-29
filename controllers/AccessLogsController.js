@@ -1,6 +1,14 @@
 // controllers/AccessLogsController.js
 const db = require('../config/db');
+const {
+  runValidation, required, mustBeOneOf, mustBePositiveInt,
+} = require('../utils/validate');
+
+const ACTIONS = ['opened', 'closed', 'denied'];
+
 class AccessLogsController {
+
+  // GET /api/access-logs  –  ?user_id=  ?locker_id=  ?action=  ?sort=
   async getAll(req, res) {
     try {
       const { user_id, locker_id, action, sort } = req.query;
@@ -17,18 +25,31 @@ class AccessLogsController {
       res.status(200).json({ status: 'success', count: rows.length, data: rows });
     } catch (err) { res.status(500).json({ status: 'error', message: err.message }); }
   }
+
+  // GET /api/access-logs/:id
   async getOne(req, res) {
     try {
       const [rows] = await db.query('SELECT * FROM access_logs WHERE log_id=?', [req.params.id]);
-      if (rows.length === 0) return res.status(404).json({ status: 'error', message: 'Log not found' });
+      if (rows.length === 0)
+        return res.status(404).json({ status: 'error', message: 'Log not found' });
       res.status(200).json({ status: 'success', data: rows[0] });
     } catch (err) { res.status(500).json({ status: 'error', message: err.message }); }
   }
+
+  // POST /api/access-logs
+  // Body: { user_id, locker_id, action }
   async create(req, res) {
     try {
       const { user_id, locker_id, action } = req.body;
-      if (!user_id || !locker_id || !action)
-        return res.status(400).json({ status: 'error', message: 'user_id, locker_id, and action are required' });
+
+      const errors = runValidation([
+        { field: 'user_id',   value: user_id,   checks: [required, mustBePositiveInt] },
+        { field: 'locker_id', value: locker_id, checks: [required, mustBePositiveInt] },
+        { field: 'action',    value: action,    checks: [required, mustBeOneOf(ACTIONS)] },
+      ]);
+      if (errors.length)
+        return res.status(400).json({ status: 'error', errors });
+
       const [result] = await db.query(
         'INSERT INTO access_logs (user_id, locker_id, action, accessed_at) VALUES (?, ?, ?, NOW())',
         [user_id, locker_id, action]
@@ -37,21 +58,39 @@ class AccessLogsController {
       res.status(201).json({ status: 'success', data: rows[0] });
     } catch (err) { res.status(500).json({ status: 'error', message: err.message }); }
   }
+
+  // PUT /api/access-logs/:id
+  // Body: { action }
   async update(req, res) {
     try {
       const { action } = req.body;
-      const [result] = await db.query('UPDATE access_logs SET action=? WHERE log_id=?', [action, req.params.id]);
-      if (result.affectedRows === 0) return res.status(404).json({ status: 'error', message: 'Log not found' });
+
+      const errors = runValidation([
+        { field: 'action', value: action, checks: [required, mustBeOneOf(ACTIONS)] },
+      ]);
+      if (errors.length)
+        return res.status(400).json({ status: 'error', errors });
+
+      const [result] = await db.query(
+        'UPDATE access_logs SET action=? WHERE log_id=?',
+        [action, req.params.id]
+      );
+      if (result.affectedRows === 0)
+        return res.status(404).json({ status: 'error', message: 'Log not found' });
       const [rows] = await db.query('SELECT * FROM access_logs WHERE log_id=?', [req.params.id]);
       res.status(200).json({ status: 'success', data: rows[0] });
     } catch (err) { res.status(500).json({ status: 'error', message: err.message }); }
   }
+
+  // DELETE /api/access-logs/:id
   async remove(req, res) {
     try {
       const [result] = await db.query('DELETE FROM access_logs WHERE log_id=?', [req.params.id]);
-      if (result.affectedRows === 0) return res.status(404).json({ status: 'error', message: 'Log not found' });
-      res.status(200).json({ status: 'success', message: 'Log ' + req.params.id + ' deleted' });
+      if (result.affectedRows === 0)
+        return res.status(404).json({ status: 'error', message: 'Log not found' });
+      res.status(200).json({ status: 'success', message: `Log ${req.params.id} deleted` });
     } catch (err) { res.status(500).json({ status: 'error', message: err.message }); }
   }
 }
+
 module.exports = new AccessLogsController();
