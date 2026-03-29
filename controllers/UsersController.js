@@ -1,7 +1,7 @@
 // controllers/UsersController.js
 const db = require('../config/db');
 const {
-  runValidation, required, mustBeString, mustBeEmail,
+  runValidation, required, mustBeString, mustBeName, mustBeEmail,
   mustBePhone, mustBeOneOf,
 } = require('../utils/validate');
 
@@ -53,7 +53,7 @@ class UsersController {
       const { name, email, password, phone, role } = req.body;
 
       const errors = runValidation([
-        { field: 'name',     value: name,     checks: [required, mustBeString] },
+        { field: 'name',     value: name,     checks: [required, mustBeName] },
         { field: 'email',    value: email,    checks: [required, mustBeEmail] },
         { field: 'password', value: password, checks: [required, mustBeString] },
         { field: 'phone',    value: phone,    checks: [mustBePhone] },
@@ -85,7 +85,7 @@ class UsersController {
       const { name, email, phone, role } = req.body;
 
       const errors = runValidation([
-        { field: 'name',  value: name,  checks: [mustBeString] },
+        { field: 'name',  value: name,  checks: [mustBeName] },
         { field: 'email', value: email, checks: [mustBeEmail] },
         { field: 'phone', value: phone, checks: [mustBePhone] },
         { field: 'role',  value: role,  checks: [mustBeOneOf(ROLES)] },

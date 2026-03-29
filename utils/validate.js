@@ -47,6 +47,12 @@ const mustBeString = (value, field) =>
     ? `${field} must be a non-empty string`
     : null;
 
+// letters and spaces only — no digits or special characters
+const mustBeName = (value, field) =>
+  value !== undefined && (typeof value !== 'string' || !/^[A-Za-z\s]+$/.test(value.trim()))
+    ? `${field} must contain letters only (no numbers or special characters)`
+    : null;
+
 const mustBeEmail = (value, field) =>
   value !== undefined && !isEmail(value)
     ? `${field} must be a valid email address containing "@" and ending with ".com"`
@@ -110,6 +116,7 @@ module.exports = {
   runValidation,
   required,
   mustBeString,
+  mustBeName,
   mustBeEmail,
   mustBePhone,
   mustBePositiveInt,
