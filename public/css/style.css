@@ -718,6 +718,26 @@ label {
   color: var(--text);
 }
 
+/* ── Auth switch link (sign in ↔ sign up) ──────── */
+.auth-switch {
+  text-align: center;
+  margin-top: 18px;
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+.auth-switch a {
+  color: var(--primary);
+  font-weight: 600;
+  text-decoration: none;
+  transition: color var(--ease);
+}
+
+.auth-switch a:hover {
+  color: var(--primary-dark);
+  text-decoration: underline;
+}
+
 /* ── Notification read/unread ──────────────────── */
 .notif-unread { font-weight: 600; }
 .notif-read   { color: var(--text-muted); }

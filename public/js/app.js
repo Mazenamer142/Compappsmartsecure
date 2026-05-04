@@ -257,6 +257,98 @@ function LoginPage() {
             {loading ? 'Signing in…' : 'Sign In'}
           </button>
         </form>
+        <p className="auth-switch">
+          Don't have an account?{' '}
+          <a href="#/signup" onClick={e => { e.preventDefault(); navigate('/signup'); }}>Create one</a>
+        </p>
+      </div>
+    </div>
+  );
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// Sign Up Page
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+function SignUpPage() {
+  const { login } = useAuth();
+  const navigate  = useNavigate();
+  const [form, setForm]       = useState({ role: 'customer' });
+  const [error, setError]     = useState('');
+  const [loading, setLoading] = useState(false);
+
+  const F = (k) => (e) => setForm(f => ({ ...f, [k]: e.target.value }));
+
+  async function handleSubmit(e) {
+    e.preventDefault();
+    setError('');
+    if (!form.name || !form.email || !form.password) {
+      setError('Name, email and password are required.');
+      return;
+    }
+    setLoading(true);
+    try {
+      await window.api.createUser(form);
+      // Auto sign-in after registration
+      const res = await window.api.login(form.email.trim(), form.password);
+      login(res.data);
+      navigate('/');
+    } catch (err) {
+      setError(err.message || 'Registration failed');
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  return (
+    <div className="login-page">
+      <div className="login-glow-1" />
+      <div className="login-glow-2" />
+      <div className="login-card">
+        <div className="login-logo">
+          <div className="login-logo-icon">✨</div>
+          <h1>Create Account</h1>
+          <p>Join SmartSecure today</p>
+        </div>
+
+        {error && <div className="login-error">{error}</div>}
+
+        <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+          <div className="form-group" style={{ marginBottom: 0 }}>
+            <label>Full Name *</label>
+            <input className="form-input" placeholder="John Doe" value={form.name || ''}
+              onChange={F('name')} required />
+          </div>
+          <div className="form-group" style={{ marginBottom: 0 }}>
+            <label>Email Address *</label>
+            <input className="form-input" type="email" placeholder="you@example.com"
+              value={form.email || ''} onChange={F('email')} required />
+          </div>
+          <div className="form-group" style={{ marginBottom: 0 }}>
+            <label>Password *</label>
+            <input className="form-input" type="password" placeholder="Choose a password"
+              value={form.password || ''} onChange={F('password')} required />
+          </div>
+          <div className="form-group" style={{ marginBottom: 0 }}>
+            <label>Phone <span style={{ fontWeight: 400, textTransform: 'none' }}>(optional, 11 digits)</span></label>
+            <input className="form-input" placeholder="01012345678"
+              value={form.phone || ''} onChange={F('phone')} />
+          </div>
+          <div className="form-group" style={{ marginBottom: 0 }}>
+            <label>Role</label>
+            <select className="form-select" value={form.role} onChange={F('role')}>
+              <option value="customer">Customer</option>
+              <option value="admin">Admin</option>
+              <option value="technician">Technician</option>
+            </select>
+          </div>
+          <button className="btn-login" type="submit" disabled={loading}>
+            {loading ? 'Creating account…' : 'Create Account'}
+          </button>
+        </form>
+        <p className="auth-switch">
+          Already have an account?{' '}
+          <a href="#/login" onClick={e => { e.preventDefault(); navigate('/login'); }}>Sign in</a>
+        </p>
       </div>
     </div>
   );
@@ -1380,10 +1472,11 @@ function App() {
     '/maintenance':   () => guard(MaintenancePage),
     '/notifications': () => guard(NotificationsPage),
     '/login':         () => user ? null : <LoginPage />,
+    '/signup':        () => user ? null : <SignUpPage />,
   };
 
   const render = routes[path] ? routes[path]() : (user ? <Layout><DashboardPage /></Layout> : <LoginPage />);
-  if (path === '/login' && user) { setTimeout(() => window.location.hash = '/', 0); return null; }
+  if ((path === '/login' || path === '/signup') && user) { setTimeout(() => window.location.hash = '/', 0); return null; }
 
   return (
     <AuthCtx.Provider value={{ user, login, logout }}>
