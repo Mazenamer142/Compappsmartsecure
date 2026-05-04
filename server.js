@@ -3,12 +3,25 @@
 //  Registers all routes and starts Express server
 // ─────────────────────────────────────────────
 
+const path    = require('path');
 const express = require('express');
 const app     = express();
 require('dotenv').config();
 
 // Parse incoming JSON request bodies
 app.use(express.json());
+
+// CORS – allow all origins for local development
+app.use((req, res, next) => {
+  res.header('Access-Control-Allow-Origin', '*');
+  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+  res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+  if (req.method === 'OPTIONS') return res.sendStatus(200);
+  next();
+});
+
+// ── Serve frontend static files ─────────────
+app.use(express.static(path.join(__dirname, 'public')));
 
 // ── Import all route files ──────────────────
 const authRoutes             = require('./routes/auth');
@@ -32,9 +45,10 @@ app.use('/api/maintenance',   maintenanceRoutes);
 app.use('/api/notifications', notificationsRoutes);
 app.use('/api/locations',     locationsRoutes);
 
-// ── Root health-check endpoint ──────────────
-app.get('/', (req, res) => {
-  res.json({ message: 'SmartSecure API is running' });
+// ── SPA fallback – serve index.html for all non-API routes ──
+app.get('*', (req, res, next) => {
+  if (req.path.startsWith('/api')) return next();
+  res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
 // ── Global error handler ────────────────────
@@ -47,4 +61,5 @@ app.use((err, req, res, next) => {
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
   console.log(`SmartSecure API running on port ${PORT}`);
+  console.log(`Frontend available at http://localhost:${PORT}`);
 });
